@@ -26,7 +26,7 @@ I want to automate complete process
 
  - Basically I just need to execute `terraform apply`
 
-First I will go to my Terraform project (https://github.com/ManhTrinhNguyen/Terraform-Exercise) 
+First I will go to my Terraform project (https://github.com/ManhTrinhNguyen/Terraform-Exercise/blob/test-ansible/main.tf) 
 
 In this part 
 
