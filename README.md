@@ -1,3 +1,11 @@
+- [Ansible and Terraform](#Ansible-and-Terraform)
+
+  - [Intergrate Ansible Playbook execution in Terraform](#Intergrate-Ansible-Playbook-execution-in-Terraform)
+ 
+  - [Wait for EC2 Server to be fully initialized](#Wait-for-EC2-Server-to-be-fully-initialized)
+ 
+  - [Using null resource](#Using-null-resource)
+
 # Ansible-Terraform
 
 ## Ansible and Terraform
