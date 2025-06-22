@@ -1,0 +1,87 @@
+---
+- name: Wait for Port 22 become open on the host
+  hosts: all
+  gather_facts: False
+  tasks:
+    - name: Wait for Port 22 become open on the host and contain OPENSSH
+      ansible.builtin.wait_for:
+        port: 22
+        host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+        delay: 10
+        timeout: 200
+        search_regex: OpenSSH
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: /usr/bin/python3
+
+- name: Install Docker
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Docker
+      ansible.builtin.dnf:
+        name: docker
+        update_cache: true
+        state: present
+
+- name: Create new Linux User
+  hosts: all
+  become: yes
+  vars_files: project-vars.yaml
+  tasks:
+    - name: Create new Linux user
+      user:
+        name: "{{linux_name}}"
+        groups: adm, docker
+        create_home: yes
+  
+
+- name: Install Docker Compose
+  hosts: all
+  become: yes
+  become_user: "{{linux_name}}"
+  vars_files: 
+    project-vars.yaml
+  tasks:
+    - name: Create docker-compose directory
+      file:
+        path: /home/{{linux_name}}/.docker/cli-plugins/
+        state: directory
+    - name: Get architecture of remote machine
+      shell: uname -m
+      register: remote_arch
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-{{ remote_arch.stdout }}
+        dest: /home/{{linux_name}}/.docker/cli-plugins/docker-compose
+        mode: +x
+
+- name: Start Docker
+  hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Start docker daemon
+      ansible.builtin.systemd_service:
+        name: docker
+        state: started
+
+
+- name: Start Docker container
+  hosts: all
+  vars_files: project-vars.yaml
+  become: yes
+  become_user: "{{linux_name}}"
+  tasks:
+    - name: Copy docker compose file to Remote Server
+      copy:
+        src: ./docker-compose.yaml
+        dest: /home/{{linux_name}}/ 
+    - name: Login to Docker Repository
+      community.docker.docker_login:
+        username: nguyenmanhtrinh
+        password: '{{docker_password}}'
+    - name: Start Container from Compose
+      community.docker.docker_compose_v2:
+        project_src: /home/{{linux_name}}/
+        state: present
