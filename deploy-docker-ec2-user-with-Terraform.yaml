@@ -1,0 +1,95 @@
+---
+- name: Wait for Port 22 become open on the host
+  hosts: all
+  gather_facts: False
+  tasks:
+    - name: Wait for Port 22 become open on the host and contain OPENSSH
+      ansible.builtin.wait_for:
+        port: 22
+        host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+        delay: 10
+        timeout: 200
+        search_regex: OpenSSH
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: /usr/bin/python3
+- name: Install Docker
+  hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Install Docker
+      ansible.builtin.dnf:
+        name: docker
+        update_cache: true
+        state: present
+- name: Install Docker Compose
+  hosts: all
+  vars_files: project-vars.yaml
+  become: yes
+  tasks:
+    - name: Create docker-compose directory
+      file:
+        path: /home/ec2-user/.docker/cli-plugins/
+        state: directory
+    - name: Get architecture of remote machine
+      shell: uname -m
+      register: remote_arch
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-{{ remote_arch.stdout }}
+        dest: /home/ec2-user/.docker/cli-plugins/docker-compose
+        mode: +x
+
+- name: Start Docker
+  hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Start docker daemon
+      ansible.builtin.systemd_service:
+        name: docker
+        state: started
+
+- name: Add ec2-user to docker group
+  hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+    - name: Reconnect to server session
+      meta: reset_connection
+
+- name: Start Docker container
+  hosts: all
+  vars_files: project-vars.yaml
+  become: yes 
+  tasks:
+    - name: Ensure ~/.docker directory exists for ec2-user
+      file:
+        path: /home/ec2-user/.docker
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0700'
+    - name: Copy docker compose file to Remote Server
+      copy:
+        src: ./docker-compose.yaml
+        dest: /home/ec2-user/
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+    - name: Login to Docker Repository
+      community.docker.docker_login:
+        username: nguyenmanhtrinh
+        password: '{{docker_password}}'
+      become_user: ec2-user
+    - name: Start Container from Compose
+      community.docker.docker_compose_v2:
+        project_src: /home/ec2-user/
+        state: present
+      become_user: ec2-user
